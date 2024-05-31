@@ -1,0 +1,15 @@
+[package]
+name = "duplicate-function-checker"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+anyhow = "1.0.86"
+clap = { version = "4.5.4", features = ["derive"] }
+object = "0.36.0"
+rustc-demangle = "0.1.24"
+iced-x86 = { version = "1.21.0", default-features = false, features = [
+    "std",
+    "decoder",
+    "block_encoder",
+] }
