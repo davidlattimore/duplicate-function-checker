@@ -60,7 +60,7 @@ enum SortType {
     /// Sort by number of copies.
     Copies,
 
-    // Sort by function size.
+    /// Sort by function size.
     Size,
 }
 
