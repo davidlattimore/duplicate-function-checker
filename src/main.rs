@@ -20,7 +20,6 @@ type Result<T = (), E = anyhow::Error> = core::result::Result<T, E>;
 #[derive(clap::Parser)]
 struct Args {
     /// Input binary to parse.
-    #[arg(long)]
     bin: PathBuf,
 
     /// Whether to print information about each duplicate symbol.
@@ -34,6 +33,10 @@ struct Args {
     /// What to key functions by.
     #[arg(long, default_value = "instructions")]
     key: KeyType,
+
+    /// What to sort results by.
+    #[arg(long, default_value = "excess-bytes")]
+    sort: SortType,
 }
 
 #[derive(Clone, Copy, clap::ValueEnum, PartialEq, Eq)]
@@ -47,6 +50,18 @@ enum KeyType {
     // Key by function name and size, but drop the hash added by rustc. This may group
     // monomorphisations that are fundamentally different, so isn't recommended.
     NameWithoutRustHash,
+}
+
+#[derive(Clone, Copy, clap::ValueEnum, PartialEq, Eq)]
+enum SortType {
+    /// Sort by excess bytes of function in the binary.
+    ExcessBytes,
+
+    /// Sort by number of copies.
+    Copies,
+
+    // Sort by function size.
+    Size,
 }
 
 fn main() -> Result {
@@ -101,13 +116,20 @@ fn process<K: Key>(path: &Path, args: &Args) -> Result {
         };
     }
 
-    let duplicated_bytes: u64 = symbols.values().map(|v| v.excess_bytes()).sum();
+    let (duplicated_bytes, duplicated_functions, duplicate_instances) =
+        symbols.values().fold((0, 0, 0), |prev, v| {
+            (
+                prev.0 + v.excess_bytes(),
+                prev.1 + if v.count > 1 { 1 } else { 0 },
+                prev.2 + v.count.saturating_sub(1),
+            )
+        });
 
     let text_size = determine_text_size(&object);
-    let percent = duplicated_bytes * 100 / text_size;
+    let percent = duplicated_bytes as f64 / text_size as f64;
 
     if args.verbose {
-        print_duplicates(symbols)?;
+        print_duplicates(symbols, args.sort)?;
     }
 
     if considered == 0 {
@@ -117,10 +139,16 @@ fn process<K: Key>(path: &Path, args: &Args) -> Result {
         bail!("No functions were checked for duplication, symbols may have zero sizes");
     }
 
+    println!("Original binary: {}", pretty_size(text_size));
     println!(
-        "{duplicated_bytes} bytes in excess copies of functions. {percent}% of executable \
-         bytes in file"
+        "   Excess bytes: {} ({:.1}%)",
+        pretty_size(duplicated_bytes),
+        percent * 100.0
     );
+    println!(
+        "            Fns: {duplicated_functions} with dupes, {duplicate_instances} excess instances"
+    );
+
     Ok(())
 }
 
@@ -138,17 +166,23 @@ fn get_fn_bytes<'data>(
     Some(&section_data[offset..end])
 }
 
-fn print_duplicates<K: Key>(symbols: HashMap<K, SymInfo>) -> Result {
+fn print_duplicates<K: Key>(symbols: HashMap<K, SymInfo>, sort: SortType) -> Result {
     let mut symbols = symbols
         .into_values()
         .filter(|info| info.count > 1)
         .collect::<Vec<_>>();
-    symbols.sort_by_key(|v| v.excess_bytes());
+
+    match sort {
+        SortType::ExcessBytes => symbols.sort_by_key(|v| v.excess_bytes()),
+        SortType::Copies => symbols.sort_by_key(|v| v.count),
+        SortType::Size => symbols.sort_by_key(|v| v.function_size),
+    };
+
     let mut out = std::io::stdout().lock();
     for v in symbols {
-        writeln!(&mut out, "Function size: {}", v.function_size)?;
+        writeln!(&mut out, "Function size: {}", pretty_size(v.function_size))?;
         writeln!(&mut out, "Copies: {}", v.count)?;
-        writeln!(&mut out, "Excess bytes: {}", v.excess_bytes())?;
+        writeln!(&mut out, "Excess bytes: {}", pretty_size(v.excess_bytes()))?;
         writeln!(&mut out, "Names:")?;
         for (name, count) in &v.names {
             writeln!(&mut out, "  {count}x `{name}`")?;
@@ -263,4 +297,25 @@ fn normalise_asm(fn_bytes: &[u8], base_address: u64, new_address: u64) -> Result
     let instructions = decoder.into_iter().collect::<Vec<_>>();
     let block = iced_x86::InstructionBlock::new(&instructions, new_address);
     Ok(iced_x86::BlockEncoder::encode(64, block, iced_x86::BlockEncoderOptions::NONE)?.code_buffer)
+}
+
+fn pretty_size(size: u64) -> String {
+    const KIBIBYTE: u64 = 1024;
+    const MEBIBYTE: u64 = 1_048_576;
+    const GIBIBYTE: u64 = 1_073_741_824;
+    const TEBIBYTE: u64 = 1_099_511_627_776;
+    const PEBIBYTE: u64 = 1_125_899_906_842_624;
+    const EXBIBYTE: u64 = 1_152_921_504_606_846_976;
+
+    let (size, symbol) = match size {
+        size if size < KIBIBYTE => (size as f64, "B"),
+        size if size < MEBIBYTE => (size as f64 / KIBIBYTE as f64, "KiB"),
+        size if size < GIBIBYTE => (size as f64 / MEBIBYTE as f64, "MiB"),
+        size if size < TEBIBYTE => (size as f64 / GIBIBYTE as f64, "GiB"),
+        size if size < PEBIBYTE => (size as f64 / TEBIBYTE as f64, "TiB"),
+        size if size < EXBIBYTE => (size as f64 / PEBIBYTE as f64, "PiB"),
+        _ => (size as f64 / EXBIBYTE as f64, "EiB"),
+    };
+
+    format!("{:.1}{}", size, symbol)
 }
