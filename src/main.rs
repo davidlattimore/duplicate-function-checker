@@ -47,8 +47,8 @@ enum KeyType {
     /// Key by function name and size.
     NameAndSize,
 
-    // Key by function name and size, but drop the hash added by rustc. This may group
-    // monomorphisations that are fundamentally different, so isn't recommended.
+    /// Key by function name and size, but drop the hash added by rustc. This may group
+    /// monomorphisations that are fundamentally different, so isn't recommended.
     NameWithoutRustHash,
 }
 
@@ -139,9 +139,9 @@ fn process<K: Key>(path: &Path, args: &Args) -> Result {
         bail!("No functions were checked for duplication, symbols may have zero sizes");
     }
 
-    println!("Original binary: {}", pretty_size(text_size));
+    println!("Original binary: {} of executable code", pretty_size(text_size));
     println!(
-        "   Excess bytes: {} ({:.1}%)",
+        "   Excess bytes: {} ({:.1}% of executable code)",
         pretty_size(duplicated_bytes),
         percent * 100.0
     );
