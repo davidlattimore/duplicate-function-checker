@@ -28,7 +28,7 @@ hash at the end of the symbol.
 Recommended usage:
 
 ```sh
-cargo run --release -- --verbose --demangle --bin /path/to/bin
+cargo run --release -- --verbose --demangle /path/to/bin
 ```
 
 ## Sample output
