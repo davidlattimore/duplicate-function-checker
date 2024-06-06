@@ -107,14 +107,20 @@ Each of these symbols shows up in a different rlib.
 
 ## Typical results
 
-For a release build of ripgrep with rustc 1.78.0, I observe about 5% of the executable bytes in the
-binary are excess copies of duplicated functions.
+For a release build of ripgrep with rustc 1.78.0, I observe the following:
 
-For a debug build of ripgrep, this increases to 6%. This is not surprising, since there's less
-inlining happening, so more scope for generic functions to be duplicates.
+| Configuration                                                         | % duplicate functions |
+| --------------------------------------------------------------------- | --------------------- |
+| Default release                                                       | 5.8                   |
+| Release with LTO disabled                                             | 6.4                   |
+| Release with fat LTO                                                  | 2.1                   |
+| Release with codegen-units=1                                          | 1.9                   |
+| Release with codegen-units=1 + fat LTO                                | 1.8                   |
+| Release with codegen-units=1 + fat LTO + -Zshare-generics             | 0.9                   |
+| Default debug (-Zshare-generics on by default)                        | 6.6                   |
+| Default debug with -Zshare-generics=off                               | 7.1                   |
 
-If I set `codegen-units=1` on a release build of ripgrep, then the excess copies drops to 1% of
-function bytes.
+If trying to reproduce these numbers, I tested with commit 601e122e9f.
 
 For a binary with lots more dependencies, I pick on my own crate, the Rust REPL evcxr. In its
 release build, 10% of executable bytes are from excess copies of duplicated functions. This drops to
