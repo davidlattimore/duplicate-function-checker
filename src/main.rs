@@ -30,6 +30,10 @@ struct Args {
     #[arg(long)]
     demangle: bool,
 
+    /// Whether to demangle symbol names and drop rust's hashes.
+    #[arg(long)]
+    demangle_no_hash: bool,
+
     /// What to key functions by.
     #[arg(long, default_value = "instructions")]
     key: KeyType,
@@ -105,14 +109,14 @@ fn process<K: Key>(path: &Path, args: &Args) -> Result {
         });
         info.count += 1;
         if let Ok(name) = sym.name() {
-            if args.demangle {
-                *info
-                    .names
-                    .entry(Cow::Owned(rustc_demangle::demangle(name).to_string()))
-                    .or_default() += 1;
+            let key = if args.demangle {
+                Cow::Owned(rustc_demangle::demangle(name).to_string())
+            } else if args.demangle_no_hash {
+                Cow::Owned(format!("{:#}", rustc_demangle::demangle(name)))
             } else {
-                *info.names.entry(Cow::Borrowed(name)).or_default() += 1;
-            }
+                Cow::Borrowed(name)
+            };
+            *info.names.entry(key).or_default() += 1;
         };
     }
 
@@ -139,7 +143,10 @@ fn process<K: Key>(path: &Path, args: &Args) -> Result {
         bail!("No functions were checked for duplication, symbols may have zero sizes");
     }
 
-    println!("Original binary: {} of executable code", pretty_size(text_size));
+    println!(
+        "Original binary: {} of executable code",
+        pretty_size(text_size)
+    );
     println!(
         "   Excess bytes: {} ({:.1}% of executable code)",
         pretty_size(duplicated_bytes),
