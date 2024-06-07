@@ -2,6 +2,10 @@
 name = "duplicate-function-checker"
 version = "0.1.0"
 edition = "2021"
+repository = "https://github.com/davidlattimore/duplicate-function-checker"
+description = "Tool to determine how much of your binary is duplicate functions"
+license = "MIT OR Apache-2.0"
+readme = "README.md"
 
 [dependencies]
 anyhow = "1.0.86"
