@@ -126,6 +126,14 @@ For a binary with lots more dependencies, I pick on my own crate, the Rust REPL 
 release build, 10% of executable bytes are from excess copies of duplicated functions. This drops to
 1% with `codegen-units=1`.
 
+## Installation
+
+Can be installed from crates.io with:
+
+```sh
+cargo install --locked duplicate-function-checker
+```
+
 ## License
 
 Licensed under either of [Apache License, Version 2.0](LICENSE-APACHE) or [MIT license](LICENSE-MIT)
